@@ -1,0 +1,16 @@
+{
+  "manifest_version": 3,
+  "name": "GutCheck",
+  "version": "1.0.0",
+  "description": "Train your instinct against AI hallucinations. Side panel extension.",
+  "permissions": ["sidePanel"],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "side_panel": {
+    "default_path": "index.html"
+  },
+  "action": {
+    "default_title": "Open GutCheck"
+  }
+}
