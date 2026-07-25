@@ -845,7 +845,7 @@ DeetsCheck is designed specifically for AI and MIL. The following table maps eac
 | Clarity of Presentation | Brier score chosen over log-loss specifically for one-screen explainability; reliability diagram rendered as a simple line against a diagonal |
 | Innovation and Creativity | The ordering constraint (predict before evidence) is the novel contribution — no existing MIL tool applies the predict-then-check method specifically to sourceless AI answers |
 | Feasibility and Sustainability | No GPU hosting, no fine-tuning, no proprietary model required; free-tier APIs throughout; offline-capable classroom mode with physical cards |
-| Impact and Inclusion | Multi-channel design (web, Telegram, classroom with zero per-student devices); zero-login core loop; no-install option for mobile-first users |
+| Impact and Inclusion | Multi-channel design (web Chrome extension + classroom with zero per-student devices); zero-login core loop; no-install option for mobile-first users; Telegram bot channel on roadmap |
 
 ---
 
@@ -860,7 +860,7 @@ The following features are explicitly out of scope for the MVP and are documente
 - Ranked seasonal Duel leagues once the core calibration mechanic is validated, deliberately deferred to avoid incentivising guessing-for-score over genuine calibration
 - Integration pathway into existing MIL frameworks networks as a plugin rather than a standalone competing platform
 - Foundation model fine-tuning on the growing claim bank once labelled outcome data is sufficient
-- Native mobile app, currently covered by the PWA and Telegram bot channels
+- Native mobile app; the web layer is currently delivered as a Chrome extension sidebar (no install from app store required); a Telegram bot channel is on the roadmap as the next distribution layer
 
 ---
 
