@@ -253,4 +253,20 @@ SEEDED_CLAIMS: List[Dict[str, Any]] = [
             "has_unresolved_citation": True,
         },
     },
+    {
+        "text": "Honey has an indefinite shelf life because it contains hydrogen peroxide.",
+        "claim_type": "factual",
+        "entities": ["Honey", "Hydrogen peroxide"],
+        "specificity_score": 0.70,
+        "difficulty_index": 0.4,
+        "known_outcome": 0.0,
+        "outcome_rationale": "While honey does have a long shelf life, the specific claim that this is strictly because it contains hydrogen peroxide is inaccurate and misleading. Its longevity is primarily due to low moisture content and high acidity.",
+        "_features": {
+            "ent_density": 0.15,
+            "hedge_ratio": 0.0,
+            "has_numeric": False,
+            "numeric_density": 0.0,
+            "has_unresolved_citation": False,
+        },
+    }
 ]

@@ -142,6 +142,44 @@ async def _query_wikipedia(entities: List[str], claim_text: str) -> Optional[Sou
 
 
 # ---------------------------------------------------------------------------
+# Wikidata
+# ---------------------------------------------------------------------------
+
+async def _query_wikidata(entities: List[str]) -> Optional[SourceResult]:
+    """Search Wikidata for the primary entity's description to provide context."""
+    if not entities:
+        return None
+        
+    term = entities[0]
+    try:
+        async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
+            params = {
+                "action": "wbsearchentities",
+                "search": term,
+                "language": "en",
+                "format": "json"
+            }
+            resp = await client.get("https://www.wikidata.org/w/api.php", params=params)
+            if resp.status_code == 200:
+                data = resp.json()
+                results = data.get("search", [])
+                if results:
+                    item = results[0]
+                    desc = item.get("description", "")
+                    if desc:
+                        return SourceResult(
+                            source_name="Wikidata",
+                            source_url=f"https://www.wikidata.org/wiki/{item.get('id', '')}",
+                            excerpt=f"Wikidata entity {item.get('label', term)}: {desc}",
+                            verdict=None,
+                            supports_claim=None,
+                        )
+    except Exception:
+        pass
+    return None
+
+
+# ---------------------------------------------------------------------------
 # Google Fact Check Tools
 # ---------------------------------------------------------------------------
 
@@ -341,15 +379,16 @@ async def triangulate(
     a structured Reveal payload (PRD §5.5).
     """
     wiki_task = _query_wikipedia(entities, claim_text)
+    wikidata_task = _query_wikidata(entities)
     factcheck_task = _query_factcheck(claim_text)
     gdelt_task = _query_gdelt(claim_text, entities)
 
-    wiki_result, factcheck_result, gdelt_result = await asyncio.gather(
-        wiki_task, factcheck_task, gdelt_task, return_exceptions=True
+    wiki_result, wikidata_result, factcheck_result, gdelt_result = await asyncio.gather(
+        wiki_task, wikidata_task, factcheck_task, gdelt_task, return_exceptions=True
     )
 
     results: List[SourceResult] = []
-    for r in [wiki_result, factcheck_result, gdelt_result]:
+    for r in [wiki_result, wikidata_result, factcheck_result, gdelt_result]:
         if isinstance(r, SourceResult):
             results.append(r)
 
