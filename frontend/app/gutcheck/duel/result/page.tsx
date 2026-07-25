@@ -1,7 +1,8 @@
 "use client"
 
-import { useRouter } from "next/navigation"
+import { useRouter, useSearchParams } from "next/navigation"
 import { Button } from "@/components/ui/button"
+import { useEffect, useState } from "react"
 
 const PLAYERS = {
   p1: {
@@ -13,8 +14,8 @@ const PLAYERS = {
     isWinner: false,
   },
   p2: {
-    name: "Alex M.",
-    initials: "AM",
+    name: "Sagar",
+    initials: "SA",
     prediction: 31,
     answer: "FALSE",
     score: +14,
@@ -103,6 +104,28 @@ function PlayerCard({
 
 export default function DuelResultPage() {
   const router = useRouter()
+  const searchParams = useSearchParams()
+  const urlConf = searchParams.get("confidence")
+  const p1Confidence = urlConf ? parseInt(urlConf) : PLAYERS.p1.prediction
+  
+  // Calculate mock score based on confidence. The answer is FALSE (0).
+  // So lower confidence = higher score.
+  const p1Score = Math.round((50 - p1Confidence) / 2)
+  const isP1Winner = p1Score > PLAYERS.p2.score
+
+  const currentPlayers = {
+    ...PLAYERS,
+    p1: {
+      ...PLAYERS.p1,
+      prediction: p1Confidence,
+      score: p1Score,
+      isWinner: isP1Winner,
+    },
+    p2: {
+      ...PLAYERS.p2,
+      isWinner: !isP1Winner,
+    }
+  }
 
   return (
     <div className="flex flex-col gap-8">
@@ -117,7 +140,7 @@ export default function DuelResultPage() {
 
       {/* Split screen */}
       <div className="flex flex-col md:flex-row gap-4">
-        <PlayerCard player={PLAYERS.p1} side="left" />
+        <PlayerCard player={currentPlayers.p1} side="left" />
 
         {/* VS divider */}
         <div className="hidden md:flex flex-col items-center justify-center gap-2">
@@ -131,17 +154,28 @@ export default function DuelResultPage() {
           <div className="flex-1 h-px bg-border" />
         </div>
 
-        <PlayerCard player={PLAYERS.p2} side="right" />
+        <PlayerCard player={currentPlayers.p2} side="right" />
       </div>
 
       {/* Calibration comparison */}
       <div className="border border-border p-5 flex flex-col gap-3">
         <p className="text-xs font-semibold uppercase tracking-widest text-muted-foreground">Calibration Comparison</p>
         <p className="text-sm text-foreground leading-relaxed">
-          <span className="font-bold">Alex M.</span> wins this round because their confidence of{" "}
-          <span className="font-bold">31/100</span> was much better calibrated with the false answer
-          than your confidence of <span className="font-bold">72/100</span>. Well-calibrated players
-          give false claims a low confidence score, and true claims a high confidence score.
+          {isP1Winner ? (
+            <>
+              <span className="font-bold">You</span> win this round because your confidence of{" "}
+              <span className="font-bold">{p1Confidence}/100</span> was much better calibrated with the false answer
+              than Sagar's confidence of <span className="font-bold">{currentPlayers.p2.prediction}/100</span>. Well-calibrated players
+              give false claims a low confidence score, and true claims a high confidence score.
+            </>
+          ) : (
+            <>
+              <span className="font-bold">Sagar</span> wins this round because their confidence of{" "}
+              <span className="font-bold">{currentPlayers.p2.prediction}/100</span> was much better calibrated with the false answer
+              than your confidence of <span className="font-bold">{p1Confidence}/100</span>. Well-calibrated players
+              give false claims a low confidence score, and true claims a high confidence score.
+            </>
+          )}
         </p>
       </div>
 

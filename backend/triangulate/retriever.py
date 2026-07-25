@@ -66,10 +66,20 @@ async def _query_wikipedia(entities: List[str], claim_text: str) -> Optional[Sou
     """
     Search Wikipedia for the primary entity, return a relevant extract.
     Uses the Wikipedia REST summary API for clean, structured extracts.
+    Also performs basic semantic contradiction detection.
     """
     search_terms = entities[:2] if entities else _extract_key_terms(claim_text)
     if not search_terms:
         return None
+
+    # Keywords that, if in the Wikipedia extract but NOT in the claim,
+    # indicate the claim contradicts what Wikipedia says.
+    CONTRADICTION_SIGNALS = [
+        "not visible", "cannot be seen", "no evidence", "debunked",
+        "misconception", "myth", "false", "incorrect", "inaccurate",
+        "disputed", "no proven", "no scientific", "not proven",
+        "does not", "is not", "are not", "was not", "have not",
+    ]
 
     async with httpx.AsyncClient(timeout=REQUEST_TIMEOUT) as client:
         for term in search_terms:
@@ -83,12 +93,22 @@ async def _query_wikipedia(entities: List[str], claim_text: str) -> Optional[Sou
                     if extract and len(extract) > 50:
                         page_url = data.get("content_urls", {}).get("desktop", {}).get("page", "")
                         excerpt = extract[:400] + ("..." if len(extract) > 400 else "")
+
+                        # Semantic contradiction detection
+                        extract_lower = extract.lower()
+                        claim_lower = claim_text.lower()
+                        supports = None
+                        for signal in CONTRADICTION_SIGNALS:
+                            if signal in extract_lower and signal not in claim_lower:
+                                supports = False
+                                break
+
                         return SourceResult(
                             source_name="Wikipedia",
                             source_url=page_url or f"https://en.wikipedia.org/wiki/{quote(term)}",
                             excerpt=excerpt,
                             verdict=None,
-                            supports_claim=None,
+                            supports_claim=supports,
                         )
             except Exception:
                 continue
@@ -238,10 +258,10 @@ def _extract_key_terms(claim_text: str) -> List[str]:
     return phrases
 
 
-def _resolve_outcome(results: List[SourceResult], known_outcome: Optional[float] = None) -> float:
+def _resolve_outcome(results: List[SourceResult], known_outcome: Optional[float] = None, claim_text: str = "") -> float:
     """
     Determine claim outcome from evidence.
-    1.0 = supported, 0.0 = contradicted, 0.5 = contested/mixed.
+    1.0 = supported, 0.0 = contradicted, 0.5 = contested/mixed/unverifiable.
     If known_outcome is provided (from seeded bank), use that directly.
     """
     if known_outcome is not None:
@@ -249,7 +269,8 @@ def _resolve_outcome(results: List[SourceResult], known_outcome: Optional[float]
 
     verdicts = [r.supports_claim for r in results if r.supports_claim is not None]
     if not verdicts:
-        return 0.5  # inconclusive → contested
+        # Inconclusive — no source produced a definitive verdict
+        return 0.5
 
     true_count = sum(1 for v in verdicts if v)
     false_count = sum(1 for v in verdicts if not v)
@@ -259,30 +280,50 @@ def _resolve_outcome(results: List[SourceResult], known_outcome: Optional[float]
     elif false_count > true_count:
         return 0.0
     else:
-        return 0.5
+        return 0.5  # tied / mixed evidence
 
 
 def _build_rationale(results: List[SourceResult], outcome: float) -> str:
-    """Generate a plain-language evidence rationale for Reveal (PRD §5.5)."""
+    """Generate a rich, educational evidence rationale for Reveal (PRD §5.5)."""
     if not results:
-        return "No independent source with coverage of this specific claim could be found. Treat the claim as unverified."
+        return (
+            "No independent source with direct coverage of this specific claim could be found. "
+            "This is common for very specific or recently-generated AI claims. "
+            "Treat the claim as unverified — the absence of evidence is not evidence of truth."
+        )
+
+    # Build a richer rationale that cites actual source excerpts
+    source_summaries = []
+    for r in results:
+        if r.verdict:
+            source_summaries.append(f"{r.source_name} rated this claim: '{r.verdict}'.")
+        elif r.excerpt:
+            source_summaries.append(f"{r.source_name} states: '{r.excerpt[:180]}...'")
+        else:
+            source_summaries.append(f"{r.source_name} provided context but no definitive rating.")
 
     source_names = [r.source_name for r in results]
+    evidence_block = " ".join(source_summaries)
+
     if outcome == 1.0:
         return (
             f"Evidence from {' and '.join(source_names)} supports this claim. "
-            "The sources agree that the stated information is accurate."
+            f"{evidence_block} "
+            "The sources agree that the stated information is broadly accurate."
         )
     elif outcome == 0.0:
         return (
             f"Evidence from {' and '.join(source_names)} contradicts this claim. "
-            "Independent sources indicate the stated information is inaccurate or misleading."
+            f"{evidence_block} "
+            "Independent sources indicate the stated information is inaccurate or misleading. "
+            "This is the kind of confident-but-wrong claim that AI systems produce most often."
         )
     else:
         return (
             f"Sources ({', '.join(source_names)}) provide mixed or inconclusive evidence. "
-            "This claim touches on genuinely contested territory or the available evidence is insufficient "
-            "to reach a definitive conclusion."
+            f"{evidence_block} "
+            "This claim touches on genuinely contested territory, or the available evidence is "
+            "insufficient to reach a definitive conclusion. Apply extra caution."
         )
 
 
@@ -312,7 +353,7 @@ async def triangulate(
         if isinstance(r, SourceResult):
             results.append(r)
 
-    outcome = _resolve_outcome(results, known_outcome)
+    outcome = _resolve_outcome(results, known_outcome, claim_text)
     rationale = _build_rationale(results, outcome)
 
     return {

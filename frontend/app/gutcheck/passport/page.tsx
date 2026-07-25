@@ -1,5 +1,6 @@
 "use client"
 
+import { useEffect, useState } from "react"
 import {
   LineChart,
   Line,
@@ -8,43 +9,62 @@ import {
   CartesianGrid,
   Tooltip,
   ResponsiveContainer,
-  ReferenceLine,
 } from "recharts"
-
-// Demo calibration curve data: perfect calibration = x === y
-const calibrationData = [
-  { confidence: 0, accuracy: 5 },
-  { confidence: 10, accuracy: 12 },
-  { confidence: 20, accuracy: 18 },
-  { confidence: 30, accuracy: 28 },
-  { confidence: 40, accuracy: 35 },
-  { confidence: 50, accuracy: 48 },
-  { confidence: 60, accuracy: 55 },
-  { confidence: 70, accuracy: 62 },
-  { confidence: 80, accuracy: 71 },
-  { confidence: 90, accuracy: 80 },
-  { confidence: 100, accuracy: 88 },
-]
+import { getPassport } from "@/lib/api"
 
 const perfectData = [
   { confidence: 0, accuracy: 0 },
   { confidence: 100, accuracy: 100 },
 ]
 
-const statCards = [
-  { label: "Total Claims", value: "47", sub: "Checked" },
-  { label: "Brier Score", value: "0.18", sub: "Lower is better" },
-  { label: "Accuracy", value: "74%", sub: "Correct verdicts" },
-]
-
-const recentActivity = [
-  { claim: "Drinking coffee reduces Alzheimer's risk by 65%", verdict: "FALSE", delta: -8, confidence: 72 },
-  { claim: "The Great Wall of China is visible from space.", verdict: "FALSE", delta: +12, confidence: 28 },
-  { claim: "Humans share 60% of their DNA with bananas.", verdict: "TRUE", delta: +15, confidence: 70 },
-  { claim: "Lightning never strikes the same place twice.", verdict: "FALSE", delta: +10, confidence: 35 },
-]
-
 export default function PassportPage() {
+  const [data, setData] = useState<any>(null)
+  const [loading, setLoading] = useState(true)
+
+  useEffect(() => {
+    getPassport()
+      .then((res) => {
+        setData(res)
+      })
+      .catch((err) => {
+        console.error(err)
+      })
+      .finally(() => {
+        setLoading(false)
+      })
+  }, [])
+
+  if (loading) {
+    return (
+      <div className="flex flex-col gap-8">
+        <h1 className="text-3xl font-black text-foreground">Your Passport</h1>
+        <p className="text-sm text-muted-foreground animate-pulse">Loading your profile data...</p>
+      </div>
+    )
+  }
+
+  if (!data) {
+    return (
+      <div className="flex flex-col gap-8">
+        <h1 className="text-3xl font-black text-foreground">Your Passport</h1>
+        <p className="text-sm text-muted-foreground">Failed to load profile data.</p>
+      </div>
+    )
+  }
+
+  const statCards = [
+    { label: "Total Claims", value: data.total_claims?.toString() || "0", sub: "Checked" },
+    { label: "Level", value: data.level?.toString() || "1", sub: `${data.xp || 0} XP` },
+    { label: "Brier Score", value: data.reliability_diagram?.overall_brier?.toString() || "N/A", sub: "Lower is better" },
+  ]
+
+  const calibrationData = (data.reliability_diagram?.bins || []).map((bin: any) => ({
+    confidence: Math.round(bin.confidence_mid * 100),
+    accuracy: Math.round(bin.accuracy * 100),
+  }))
+
+  const recentActivity = data.recent_activity || []
+
   return (
     <div className="flex flex-col gap-8">
       {/* Header */}
@@ -133,7 +153,10 @@ export default function PassportPage() {
       <div className="flex flex-col gap-3">
         <p className="text-sm font-bold text-foreground">Recent Activity</p>
         <div className="flex flex-col divide-y divide-border border border-border">
-          {recentActivity.map((row, i) => (
+          {recentActivity.length === 0 && (
+            <p className="text-sm text-muted-foreground p-4">No recent activity yet. Play a round to see your history!</p>
+          )}
+          {recentActivity.map((row: any, i: number) => (
             <div key={i} className="flex items-center gap-4 px-4 py-3">
               <span
                 className={`shrink-0 text-xs font-black px-2 py-0.5 ${

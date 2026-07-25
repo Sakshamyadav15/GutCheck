@@ -57,8 +57,11 @@ export default function RevealPage() {
     
     getReveal(claimId).then(data => {
       setSources(data.sources)
+      let mappedVerdict = "UNVERIFIABLE"
+      if (data.outcome === 1.0) mappedVerdict = "TRUE"
+      else if (data.outcome === 0.0) mappedVerdict = "FALSE"
       setAiGuess({
-        verdict: data.outcome,
+        verdict: mappedVerdict,
         rationale: data.rationale_text
       })
     }).catch(err => {
@@ -69,9 +72,6 @@ export default function RevealPage() {
   }, [router])
 
   const handleCalibrate = () => {
-    // Store a simulated answer for calibration
-    sessionStorage.setItem("gutcheck_verdict", "FALSE")
-    sessionStorage.setItem("gutcheck_answer", "false")
     router.push("/gutcheck/play/calibrate")
   }
 

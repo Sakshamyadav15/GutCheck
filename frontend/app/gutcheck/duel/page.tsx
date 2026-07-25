@@ -8,8 +8,7 @@ const DEMO_INVITE_CODE = "GC-7X4K9"
 
 const CONNECTED_PLAYERS = [
   { id: 1, name: "You", initials: "YO", ready: true },
-  { id: 2, name: "Alex M.", initials: "AM", ready: true },
-  { id: 3, name: "Jordan K.", initials: "JK", ready: false },
+  { id: 2, name: "Sagar", initials: "SA", ready: true },
 ]
 
 export default function DuelLobbyPage() {
@@ -58,7 +57,7 @@ export default function DuelLobbyPage() {
       {/* Connected Players */}
       <div className="flex flex-col gap-3">
         <p className="text-sm font-bold text-foreground">
-          Connected Players ({CONNECTED_PLAYERS.length}/4)
+          Connected Players ({CONNECTED_PLAYERS.length}/2)
         </p>
         <div className="flex flex-col gap-2">
           {CONNECTED_PLAYERS.map((player) => (
@@ -87,7 +86,7 @@ export default function DuelLobbyPage() {
         <Button
           size="lg"
           className="flex-1 h-12 font-bold text-base"
-          onClick={() => router.push("/gutcheck/duel/result")}
+          onClick={() => router.push("/gutcheck/duel/play")}
         >
           Start Duel
         </Button>

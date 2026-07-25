@@ -55,3 +55,22 @@ export async function getCalibration(claimId: string) {
   if (!res.ok) throw new Error("Failed to fetch calibration");
   return res.json();
 }
+
+export async function getPassport() {
+  const res = await fetch(`${API_BASE_URL}/passport/${getUserId()}`, { cache: "no-store" });
+  if (!res.ok) throw new Error("Failed to fetch passport");
+  return res.json();
+}
+
+export async function createClassroomSession() {
+  const res = await fetch(`${API_BASE_URL}/classroom/session`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      facilitator_id: getUserId(),
+      difficulty_filter: "all",
+    }),
+  });
+  if (!res.ok) throw new Error("Failed to create classroom session");
+  return res.json();
+}

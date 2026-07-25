@@ -241,14 +241,22 @@ async def api_investigate_hint(
     )
     ai_pred = ai_pred_result.scalar_one_or_none()
 
-    # Re-score to get hints (stateless computation)
-    from backend.extraction.extractor import extract_claims
+    # Re-score to get hints using real claim features where possible
+    # Derive features from the claim's structural properties
+    claim_text = claim.text or ""
+    words = claim_text.split()
+    import re as _re
+    entities_list = claim.entities or []
+    has_numeric = bool(_re.search(r'\d+', claim_text))
+    numerics = _re.findall(r'\d+\.?\d*', claim_text)
+    hedge_words = ["might", "may", "could", "possibly", "perhaps", "some", "often", "sometimes", "likely"]
+    hedge_count = sum(1 for w in words if w.lower() in hedge_words)
     features = {
-        "ent_density": 0.15,
-        "hedge_ratio": 0.05,
-        "has_numeric": claim.claim_type == "statistical",
-        "numeric_density": 0.08 if claim.claim_type == "statistical" else 0.0,
-        "has_unresolved_citation": False,
+        "ent_density": len(entities_list) / max(len(words), 1),
+        "hedge_ratio": hedge_count / max(len(words), 1),
+        "has_numeric": has_numeric,
+        "numeric_density": len(numerics) / max(len(words), 1),
+        "has_unresolved_citation": any(p in claim_text.lower() for p in ["according to", "study shows", "research shows", "scientists say"]),
     }
     _, hints = score_claim(features)
 
@@ -650,7 +658,7 @@ async def api_duel_reveal(duel_id: str, db: AsyncSession = Depends(get_db)):
 
 @router.get("/passport/{user_id}")
 async def api_passport(user_id: str, db: AsyncSession = Depends(get_db)):
-    """Return the user's full Instinct Passport."""
+    """Return the user's full Instinct Passport built from live DB data."""
     await _get_or_create_user(user_id, db)
     passport = await _get_or_create_passport(user_id, db)
 
@@ -659,16 +667,31 @@ async def api_passport(user_id: str, db: AsyncSession = Depends(get_db)):
         select(Prediction).where(
             Prediction.user_id == user_id,
             Prediction.is_ai_prediction == False,
-        )
+        ).order_by(Prediction.locked_at.desc())
     )
     all_preds = all_preds_result.scalars().all()
 
     history_pairs = []
+    recent_activity = []
     for p in all_preds:
         rev_result = await db.execute(select(Reveal).where(Reveal.claim_id == p.claim_id))
         rev = rev_result.scalar_one_or_none()
         if rev and rev.outcome is not None:
             history_pairs.append((p.probability, rev.outcome))
+            if len(recent_activity) < 10:
+                claim = await db.get(Claim, p.claim_id)
+                verdict_str = "CONTESTED"
+                if rev.outcome == 1.0:
+                    verdict_str = "TRUE"
+                elif rev.outcome == 0.0:
+                    verdict_str = "FALSE"
+                pts = calibration_points(p.probability, rev.outcome)
+                recent_activity.append({
+                    "claim": claim.text if claim else "Unknown Claim",
+                    "verdict": verdict_str,
+                    "confidence": f"{int(p.probability * 100)}%",
+                    "delta": pts,
+                })
 
     diagram = reliability_diagram_data(history_pairs)
     archetype = compute_archetype(history_pairs) if history_pairs else "Emerging"
@@ -682,6 +705,7 @@ async def api_passport(user_id: str, db: AsyncSession = Depends(get_db)):
         "archetype": archetype,
         "calibration_trend": "improving" if len(history_pairs) >= 5 else "building",
         "reliability_diagram": diagram,
+        "recent_activity": recent_activity,
         "badges": passport.badges or [],
         "last_active": passport.last_active.isoformat() if passport.last_active else None,
     }

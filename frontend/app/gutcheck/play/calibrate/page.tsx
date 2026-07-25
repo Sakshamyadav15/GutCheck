@@ -53,6 +53,7 @@ export default function CalibratePage() {
   const [scoreDelta, setScoreDelta] = useState<number>(0)
   const [loading, setLoading] = useState<boolean>(true)
   const isTrue = verdict === "TRUE"
+  const isUnverifiable = verdict === "UNVERIFIABLE"
 
   useEffect(() => {
     const storedConf = sessionStorage.getItem("gutcheck_confidence")
@@ -69,8 +70,12 @@ export default function CalibratePage() {
     }
 
     getCalibration(claimId).then(data => {
-      setVerdict(data.outcome)
-      setScoreDelta(computeScore(conf, data.outcome === "TRUE"))
+      let mappedVerdict = "UNVERIFIABLE"
+      if (data.outcome === 1.0) mappedVerdict = "TRUE"
+      else if (data.outcome === 0.0) mappedVerdict = "FALSE"
+      
+      setVerdict(mappedVerdict)
+      setScoreDelta(computeScore(conf, data.outcome === 1.0))
     }).catch(err => {
       console.error(err)
       setVerdict("FALSE") // fallback
@@ -107,7 +112,7 @@ export default function CalibratePage() {
         <p className="text-xs uppercase tracking-widest font-semibold opacity-60">Verdict</p>
         <p className="text-6xl font-black tracking-tight">{loading ? "..." : verdict}</p>
         <p className="text-sm opacity-70 font-medium">
-          {loading ? "Calibrating..." : isTrue ? "The claim is supported by the evidence." : "The claim is not supported by the evidence."}
+          {loading ? "Calibrating..." : isTrue ? "The claim is supported by the evidence." : isUnverifiable ? "The claim cannot be verified by available evidence." : "The claim is not supported by the evidence."}
         </p>
       </div>
 
@@ -125,8 +130,8 @@ export default function CalibratePage() {
             <div className="text-2xl font-black text-muted-foreground self-center">&rarr;</div>
             <div className="flex flex-col gap-0.5">
               <span className="text-xs text-muted-foreground">Actual answer</span>
-              <span className={`text-3xl font-black ${isTrue ? "text-foreground" : "text-destructive-foreground"}`}>
-                {isTrue ? "TRUE" : "FALSE"}
+              <span className={`text-3xl font-black ${isTrue ? "text-foreground" : isUnverifiable ? "text-muted-foreground" : "text-destructive-foreground"}`}>
+                {verdict}
               </span>
               <span className="text-xs text-muted-foreground">was the correct verdict</span>
             </div>
